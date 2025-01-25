@@ -143,6 +143,12 @@ export const blockUsers = asyncHandler(
 					.json({ success: false, message: "All fields are required." });
 			}
 
+			if (emailsToBlock.length === 0) {
+				return res
+					.status(200)
+					.json({ success: false, message: "No users were selected." });
+			}
+
 			await verifyUser(userEmail);
 
 			const response = await prisma.user.updateMany({
@@ -187,6 +193,12 @@ export const deleteUsers = asyncHandler(
 				return res
 					.status(400)
 					.json({ success: false, message: "All fields are required." });
+			}
+
+			if (emailsToDelete.length === 0) {
+				return res
+					.status(200)
+					.json({ success: false, message: "No users were selected." });
 			}
 
 			await verifyUser(userEmail);
