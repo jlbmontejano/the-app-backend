@@ -1,9 +1,11 @@
 import app from "./src/app";
 import prisma from "./prisma/prismaClient";
+import { configDotenv } from "dotenv";
+configDotenv();
 
 async function main() {
-	app.listen(3000);
-	console.log("Server is listening on port", 3000);
+	app.listen(process.env.PORT);
+	console.log("Server is listening on port", process.env.PORT);
 }
 
 main()
