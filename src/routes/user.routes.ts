@@ -1,10 +1,10 @@
 import { Router } from "express";
 import {
-	blockUsers,
 	createUser,
 	deleteUsers,
 	getUsers,
 	loginUser,
+	toggleUserStatus,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -12,7 +12,7 @@ const router = Router();
 router.post("/login", loginUser);
 router.post("/users", createUser);
 router.get("/users", getUsers);
-router.put("/users", blockUsers);
+router.put("/users", toggleUserStatus);
 router.delete("/users", deleteUsers);
 
 export default router;

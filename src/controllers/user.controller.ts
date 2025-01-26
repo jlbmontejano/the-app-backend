@@ -74,25 +74,25 @@ export const loginUser = asyncHandler(
 				select: {
 					name: true,
 					password: true,
-					status: true,
+					isActive: true,
 				},
 			});
 
 			if (!response) {
 				return res
-					.status(404)
-					.json({ success: false, message: "User not found." });
+					.status(401)
+					.json({ success: false, message: "Invalid credentials." });
 			}
 
 			let isValid = await bcrypt.compare(password, response.password);
 
 			if (!isValid) {
 				return res
-					.status(403)
+					.status(401)
 					.json({ success: false, message: "Invalid credentials." });
 			}
 
-			if (response.status === "BLOCKED") {
+			if (!response.isActive) {
 				return res
 					.status(400)
 					.json({ success: false, message: "This account is blocked." });
@@ -100,7 +100,7 @@ export const loginUser = asyncHandler(
 
 			return res.status(200).json({
 				success: true,
-				data: { email, name: response.name, status: response.status },
+				data: { email, name: response.name, isActive: response.isActive },
 			});
 		} catch (err) {
 			return res
@@ -119,7 +119,7 @@ export const getUsers = asyncHandler(
 			select: {
 				name: true,
 				email: true,
-				status: true,
+				isActive: true,
 			},
 		});
 
@@ -129,21 +129,21 @@ export const getUsers = asyncHandler(
 	}
 );
 
-//@desc   Blocks users
+//@desc   Toggle users' status
 //@route  PUT /users
 //@access Private
-export const blockUsers = asyncHandler(
+export const toggleUserStatus = asyncHandler(
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const { userEmail, emailsToBlock } = req.body;
+			const { userEmail, emailsToUpdate } = req.body;
 
-			if (!userEmail || !emailsToBlock) {
+			if (!userEmail || !emailsToUpdate) {
 				return res
 					.status(400)
 					.json({ success: false, message: "All fields are required." });
 			}
 
-			if (emailsToBlock.length === 0) {
+			if (emailsToUpdate.length === 0) {
 				return res
 					.status(200)
 					.json({ success: false, message: "No users were selected." });
@@ -151,24 +151,43 @@ export const blockUsers = asyncHandler(
 
 			await verifyUser(userEmail);
 
-			const response = await prisma.user.updateMany({
+			const usersToUpdate = await prisma.user.findMany({
 				where: {
 					email: {
-						in: emailsToBlock,
+						in: emailsToUpdate,
 					},
 				},
-				data: {
-					status: "BLOCKED",
+				select: {
+					email: true,
+					isActive: true,
 				},
 			});
 
+			const toggleUpdates = usersToUpdate.map(user =>
+				prisma.user.update({
+					where: { email: user.email },
+					data: {
+						isActive: !user.isActive,
+					},
+				})
+			);
+
+			const response = await prisma.$transaction(toggleUpdates);
+
+			if (emailsToUpdate.includes(userEmail)) {
+				return res.status(202).json({
+					success: true,
+					message: `You have blocked your own account.`,
+				});
+			}
+
 			return res.status(200).json({
 				success: true,
-				message: `${response.count} user(s) have been blocked.`,
+				message: `${usersToUpdate.length} user(s) status has changed.`,
 			});
 		} catch (err) {
 			if (err instanceof ErrorResponse) {
-				return res.status(403).json({
+				return res.status(401).json({
 					success: false,
 					message: err.message,
 				});
@@ -211,13 +230,20 @@ export const deleteUsers = asyncHandler(
 				},
 			});
 
+			if (emailsToDelete.includes(userEmail)) {
+				return res.status(202).json({
+					success: true,
+					message: `You have deleted your own account.`,
+				});
+			}
+
 			return res.status(200).json({
 				success: true,
 				message: `${response.count} user(s) have been deleted.`,
 			});
 		} catch (err) {
 			if (err instanceof ErrorResponse) {
-				return res.status(403).json({
+				return res.status(401).json({
 					success: false,
 					message: err.message,
 				});
@@ -238,7 +264,7 @@ const verifyUser = async (email: string) => {
 		},
 	});
 
-	if (!user || user.status === "BLOCKED") {
+	if (!user || !user.isActive) {
 		throw new ErrorResponse("Your account has been blocked or deleted.");
 	}
 };
